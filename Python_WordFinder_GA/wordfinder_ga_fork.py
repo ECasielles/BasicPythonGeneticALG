@@ -40,22 +40,25 @@ class Population(object):
     mutationrate = 0
     population = 0
     targetscore = 0
-    totalScore = 0
+    totalscore = 0
+    mutationrange = 0
     populationlist = list()
 
     #Constructor
-    def __init__(self, target, mutationrate, population):
+    def __init__(self, target, mutationrate, population, mutationrange):
+        #Number of elements 95 = 126 - 32 + 1
+        elementsrange = 95
         self.target = target
         self.mutationrate = mutationrate
         self.population = population
-        self.targetscore = 2**len(target)
-        self.populationlist = Population.initpopulation(target, len(target), population)
+        self.targetscore = elementsrange*len(target)
+        self.populationlist = self.initpopulation(target, len(target), population)
+        self.mutationrange = mutationrange
 
     ##GENETIC RULES##
 
     #Initialization
-    @staticmethod
-    def initpopulation(target, length, population):
+    def initpopulation(self, target, length, population):
         """Initializes population with a random set of individuals"""
         currentpopulation = 0
         newpopulationlist = list()
@@ -67,22 +70,24 @@ class Population(object):
                 count += 1
             newchild = GeneticElement()
             newchild.dna = newdna
-            newchild.score = Population.fitnessfunction(target, length, newdna)
+            newchild.score = self.fitnessfunction(target, length, newdna)
             newpopulationlist.append(newchild)
             currentpopulation += 1
         return newpopulationlist
 
     #Selection
-    @staticmethod
-    def fitnessfunction(target, length, dna):
+    def fitnessfunction(self, target, length, dna):
         """Evaluates a given individual's score"""
+        #Number of elements 95 = 126 - 32 + 1
+        elementsrange = 95
         score = 0
         position = 0
         while position < length:
-            if target[position] == dna[position]:
-                score += 1
+            char = ord(dna[position])
+            tchar = ord(target[position])
+            score += elementsrange - abs(tchar - char) - 1
             position += 1
-        return 2**score
+        return score
 
     #Heredity
     @staticmethod
@@ -93,54 +98,84 @@ class Population(object):
         score_b = parent_b.score
         totalscore = score_a + score_b
         count = 0
-        while count < length:
-            #The fittest is more likely to pass its genes
-            if random.randint(0, totalscore) < score_a:
-                newdna = newdna + parent_a.dna[count]
-            else:
-                newdna = newdna + parent_b.dna[count]
-            count += 1
+
+        if score_a >= score_b:
+            while count < length:
+                #The fittest is more likely to pass its genes. If it doesn't then results in midpoint.
+                if random.randint(0, totalscore) < score_a:
+                    newdna = newdna + parent_a.dna[count]
+                else:
+                    newdna = newdna + parent_b.dna[count]
+                    #avg = (ord(parent_a.dna[count]) + ord(parent_b.dna[count])) / 2
+                    #newdna = newdna + chr(int(avg))
+                count += 1
+        else:
+            while count < length:
+                #The fittest is more likely to pass its genes. If it doesn't then results in midpoint.
+                if random.randint(0, totalscore) < score_b:
+                    newdna = newdna + parent_b.dna[count]
+                else:
+                    newdna = newdna + parent_a.dna[count]
+                    #avg = (ord(parent_a.dna[count]) + ord(parent_b.dna[count])) / 2
+                    #newdna = newdna + chr(int(avg))
+                count += 1
+                
         return newdna
 
     #Variation
     @staticmethod
     def newchar():
         """Generates a random new character"""
-        char = random.randint(63, 122)
-        if char == 63:
-            char = 32
-        if char == 64:
-            char = 46
+        char = random.randint(32, 126)
         return chr(char)
 
     @staticmethod
-    def mutation(dna, mutationrate):
+    def charvariation(currentchar, mutationrange):
+        """Generates a new char with a random variation within
+        a given mutation range from a given char"""
+        #Number of elements 95 = 126 - 32 + 1
+        elementsrange = 95
+
+        newchar = ord(currentchar)
+        if mutationrange > 0:
+            #For mutationrange = 3, variation here ranges from -2 to 3, including 0
+            variation = random.randint(1 - mutationrange, mutationrange)
+            #To avoid variation = 0 variation and allow variation = -1 * mutationrange
+            if variation < 1:
+                variation -= 1
+            #Treat all available characters as a circular set
+            newchar = (newchar - 95 + variation) % elementsrange + 95
+
+        return chr(newchar)
+
+    @staticmethod
+    def mutation(dna, mutationrate, mutationrange):
         """Performs mutation on a given Dna with current mutation rate"""
         newdna = ''
         for character in dna:
             if random.randint(0, 99) < mutationrate:
-                newdna = newdna + Population.newchar()
+                newdna = newdna + Population.charvariation(character, mutationrange)
             else:
                 newdna = newdna + character
         return newdna
 
-    @staticmethod
-    def crossmutation(target, length, parent_a, parent_b, mutationrate):
+    def crossmutation(self, target, length, parent_a, parent_b, mutationrate, mutationrange):
         """Crossover + Mutation. Returns a brand new individual"""
         newchild = GeneticElement()
         dna = Population.crossover(length, parent_a, parent_b)
-        newchild.dna = Population.mutation(dna, mutationrate)
-        newchild.score = Population.fitnessfunction(target, length, newchild.dna)
+        newchild.dna = Population.mutation(dna, mutationrate, mutationrange)
+        newchild.score = self.fitnessfunction(target, length, newchild.dna)
         return newchild
 
     ##GENETIC ENGINE##
 
     #These methods manage the population list
     def gettotalscore(self):
-        """Sums the score of all the population to do the probability calculations"""
+        """Returns the whole population's score to do the probability calculations"""
         newscore = 0
         for element in self.populationlist:
             newscore += element.score
+        self.totalscore = newscore
         return newscore
     def pickrandomparent(self, lastscore):
         """Returns a random parent Id with probability pi / (p1 + p2 + ... + pn)
@@ -153,7 +188,8 @@ class Population(object):
             if currentscore < comparablescore:
                 count += 1
         return count
-    def newgeneration(self, target, length, mutationrate, population, populationlist):
+    def newgeneration(self, target, length, mutationrate, population, populationlist,
+                      mutationrange):
         """Creates one generation."""
         lastscore = self.gettotalscore()
         newgenerationlist = list()
@@ -166,8 +202,8 @@ class Population(object):
                 parent_a = parentcouple[0]
                 parent_b = parentcouple[1]
                 #Creates new child
-                newchild = Population.crossmutation(
-                    target, length, parent_a, parent_b, mutationrate
+                newchild = self.crossmutation(
+                    target, length, parent_a, parent_b, mutationrate, mutationrange
                     )
                 newgenerationlist.append(newchild)
                 count += 1
@@ -189,8 +225,8 @@ class Population(object):
                     parent_a = populationlist[maxscoreid]
                     parent_b = populationlist[parent_id_b]
                     #Creates child
-                    newchild = Population.crossmutation(
-                        target, length, parent_a, parent_b, mutationrate
+                    newchild = self.crossmutation(
+                        target, length, parent_a, parent_b, mutationrate, mutationrange
                         )
                     newgenerationlist.append(newchild)
                     count += 1
@@ -207,8 +243,8 @@ class Population(object):
                     parent_a = populationlist[parent_id_a]
                     parent_b = populationlist[parent_id_b]
                     #Creates child
-                    newchild = Population.crossmutation(
-                        target, length, parent_a, parent_b, mutationrate
+                    newchild = self.crossmutation(
+                        target, length, parent_a, parent_b, mutationrate, mutationrange
                         )
                     newgenerationlist.append(newchild)
                     count += 1
@@ -219,12 +255,13 @@ class Population(object):
         """Runs the simulation"""
         currentbestscore = 0
         count = 0
+        abortloop = 2000
         print('')
         print('\t{}\t{}\t\t {}'.format('Generation', 'Best', 'Score'))
         print('\t---------------------------------------------------')
         length = len(self.target)
         maxscore = self.targetscore
-        while currentbestscore < self.targetscore:
+        while currentbestscore < self.targetscore and count < abortloop:
             count += 1
             bestdna = ''
             generationbestscore = 0
@@ -234,15 +271,17 @@ class Population(object):
                     bestdna = element.dna
                     if generationbestscore > currentbestscore:
                         currentbestscore = generationbestscore
-            print('\t{}\t\t{}\t\t {}/{}'.format(count, bestdna, generationbestscore, maxscore))
+            print('\t{}\t\t{}\t\t {}/{}/{}'.format(count, bestdna, generationbestscore, maxscore, self.totalscore))
             if currentbestscore < self.targetscore:
                 self.populationlist = self.newgeneration(
-                    self.target, length, self.mutationrate, self.population, self.populationlist
+                    self.target, length, self.mutationrate, self.population, self.populationlist,
+                    self.mutationrange
                     )
         print('')
         print('\tFound \'' + self.target + '\' after ' + str(count) + ' generations.')
         print(
             '\tMutation Rate: ' + str(self.mutationrate) + '% chance.\n' +
+            '\tMutation Range: ' + str(self.mutationrange) + ' up and down.' +
             '\tPopulation: ' + str(self.population) + ' individuals.'
             )
     def runcount(self, stopcount):
@@ -263,9 +302,12 @@ class Population(object):
                         currentmaxscore = generationbestscore
             if currentmaxscore < self.targetscore:
                 self.populationlist = self.newgeneration(
-                    self.target, length, self.mutationrate, self.population, self.populationlist
+                    self.target, length, self.mutationrate, self.population, self.populationlist,
+                    self.mutationrange
                     )
         return count
+
+Population('unicorn', 5, 100, 3).run()
 
 class PopulationMap(object):
     """Runs all simulations within given ranges of population and mutation rates"""
@@ -275,23 +317,27 @@ class PopulationMap(object):
     maxpopulation = 0
     minmutationrate = 0
     maxmutationrate = 0
+    mutationrange = 0
 
     #Constructor
     def __init__(self, target, maxgen,
-                 minpopulation, maxpopulation, minmutationrate, maxmutationrate):
+                 minpopulation, maxpopulation, minmutationrate, maxmutationrate,
+                 mutationrange):
         self.target = target
         self.maxgen = maxgen
         self.minpopulation = minpopulation
         self.maxpopulation = maxpopulation
         self.minmutationrate = minmutationrate
         self.maxmutationrate = maxmutationrate
+        self.mutationrange = mutationrange
 
     #TODO: Matrix operations and exception handling
 
     #Matrix simulator
     def fillmap(self,
                 target, maxgen, minpopulation, maxpopulation,
-                minmutationrate, maxmutationrate, iterations):
+                minmutationrate, maxmutationrate, iterations,
+                mutationrange):
         """Fills the matrix with the values of the simulation map"""
 
         fileobj = open('data.csv', 'w')
@@ -306,7 +352,8 @@ class PopulationMap(object):
                 currentiteration = 0
                 sumgen = 0
                 while currentiteration < iterations:
-                    mypopulation = Population(target, mutationrate, currentpopulation)
+                    mypopulation = Population(
+                        target, mutationrate, currentpopulation, mutationrange)
                     sumgen += mypopulation.runcount(maxgen)
                     currentiteration += 1
 
@@ -324,7 +371,7 @@ class PopulationMap(object):
         """Runs the matrix simulator"""
         self.fillmap(
             self.target, self.maxgen, self.minpopulation, self.maxpopulation,
-            self.minmutationrate, self.maxmutationrate, iterations
+            self.minmutationrate, self.maxmutationrate, iterations, self.mutationrange
             )
         print(
             "Mapped {} from {} to {} individuals with {}% to {}% mutation chance on {} iterations".
@@ -337,4 +384,4 @@ class PopulationMap(object):
 #Launch the program
 #Population('to be or not to be', 10, 100).run()
 #Population('unicorn', 5, 100).run()
-PopulationMap('abcdefghij', 200, 30, 100, 1, 10).run(5)
+#PopulationMap('abcdefghij', 200, 30, 100, 1, 10, 5).run(5)
