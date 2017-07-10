@@ -43,15 +43,17 @@ class Population(object):
     totalscore = 0
     mutationrange = 0
     populationlist = list()
+    #Number of elements 95 = 126 - 32 + 1
+    maxelem = 126
+    minelem = 32
+    elementsrange = maxelem - minelem + 1
 
     #Constructor
     def __init__(self, target, mutationrate, population, mutationrange):
-        #Number of elements 95 = 126 - 32 + 1
-        elementsrange = 95
         self.target = target
         self.mutationrate = mutationrate
         self.population = population
-        self.targetscore = elementsrange*len(target)
+        self.targetscore = self.elementsrange*len(target)
         self.populationlist = self.initpopulation(target, len(target), population)
         self.mutationrange = mutationrange
 
@@ -78,14 +80,12 @@ class Population(object):
     #Selection
     def fitnessfunction(self, target, length, dna):
         """Evaluates a given individual's score"""
-        #Number of elements 95 = 126 - 32 + 1
-        elementsrange = 95
         score = 0
         position = 0
         while position < length:
             char = ord(dna[position])
             tchar = ord(target[position])
-            score += elementsrange - abs(tchar - char) - 1
+            score += self.elementsrange - abs(tchar - char) - 1
             position += 1
         return score
 
@@ -98,7 +98,6 @@ class Population(object):
         score_b = parent_b.score
         totalscore = score_a + score_b
         count = 0
-
         if score_a >= score_b:
             while count < length:
                 #The fittest is more likely to pass its genes. If it doesn't then results in midpoint.
@@ -118,24 +117,18 @@ class Population(object):
                     newdna = newdna + parent_a.dna[count]
                     #avg = (ord(parent_a.dna[count]) + ord(parent_b.dna[count])) / 2
                     #newdna = newdna + chr(int(avg))
-                count += 1
-                
+                count += 1                
         return newdna
 
     #Variation
-    @staticmethod
-    def newchar():
+    def newchar(self):
         """Generates a random new character"""
-        char = random.randint(32, 126)
+        char = random.randint(self.minelem, self.maxelem)
         return chr(char)
 
-    @staticmethod
-    def charvariation(currentchar, mutationrange):
+    def charvariation(self, currentchar, mutationrange):
         """Generates a new char with a random variation within
         a given mutation range from a given char"""
-        #Number of elements 95 = 126 - 32 + 1
-        elementsrange = 95
-
         newchar = ord(currentchar)
         if mutationrange > 0:
             #For mutationrange = 3, variation here ranges from -2 to 3, including 0
@@ -144,17 +137,15 @@ class Population(object):
             if variation < 1:
                 variation -= 1
             #Treat all available characters as a circular set
-            newchar = (newchar - 95 + variation) % elementsrange + 95
-
+            newchar = (newchar - self.minelem + variation) % self.elementsrange + self.minelem
         return chr(newchar)
 
-    @staticmethod
-    def mutation(dna, mutationrate, mutationrange):
+    def mutation(self, dna, mutationrate, mutationrange):
         """Performs mutation on a given Dna with current mutation rate"""
         newdna = ''
         for character in dna:
-            if random.randint(0, 99) < mutationrate:
-                newdna = newdna + Population.charvariation(character, mutationrange)
+            if random.randint(0, 100) < mutationrate:
+                newdna = newdna + self.charvariation(character, mutationrange)
             else:
                 newdna = newdna + character
         return newdna
@@ -163,7 +154,7 @@ class Population(object):
         """Crossover + Mutation. Returns a brand new individual"""
         newchild = GeneticElement()
         dna = Population.crossover(length, parent_a, parent_b)
-        newchild.dna = Population.mutation(dna, mutationrate, mutationrange)
+        newchild.dna = self.mutation(dna, mutationrate, mutationrange)
         newchild.score = self.fitnessfunction(target, length, newchild.dna)
         return newchild
 

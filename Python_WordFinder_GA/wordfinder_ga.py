@@ -314,7 +314,7 @@ class PopulationMap(object):
                 fileobj.write('{};'.format(genaverage))
                 mutationrate += 1
 
-            fileobj.write('\r\n')
+            fileobj.write('\n')
             currentpopulation += 5
 
         fileobj.close()
@@ -337,4 +337,5 @@ class PopulationMap(object):
 #Launch the program
 #Population('to be or not to be', 10, 100).run()
 #Population('unicorn', 5, 100).run()
-PopulationMap('abcdefghij', 200, 30, 100, 1, 10).run(5)
+#PopulationMap('abcdefghij', 200, 30, 100, 1, 10).run(5)
+PopulationMap('abcdefghij', 200, 30, 100, 1, 10).run(100)
