@@ -376,3 +376,4 @@ class PopulationMap(object):
 #Population('to be or not to be', 10, 100).run()
 #Population('unicorn', 5, 100).run()
 #PopulationMap('abcdefghij', 200, 30, 100, 1, 10, 5).run(5)
+PopulationMap('abcdefghij', 200, 30, 100, 1, 10, 5).run(5)
