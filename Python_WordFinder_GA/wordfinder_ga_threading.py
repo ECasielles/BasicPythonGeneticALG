@@ -1,6 +1,8 @@
 ﻿"""Basic architecture for a simple Genetic Algorithm example."""
 import random
 import time
+from multiprocessing import Pool
+from multiprocessing.dummy import Pool as ThreadPool
 
 # 1 - Heredity
 # 2 - Variation
@@ -246,25 +248,46 @@ class Population(object):
             '\tMutation Rate: ' + str(self.mutationrate) + '% chance.\n' +
             '\tPopulation: ' + str(self.population) + ' individuals.'
             )
-    def runcount(self, stopcount):
+    @staticmethod
+    def runcount(stopcount, populationobject):
         """Runs the simulation up to a given number of generations"""
         currentmaxscore = 0
         count = 0
-        length = len(self.target)
-        #maxscore = self.targetscore
-        while count < stopcount and currentmaxscore < self.targetscore:
+        length = len(populationobject.target)
+        while count < stopcount and currentmaxscore < populationobject.targetscore:
             count += 1
-            #bestdna = ''
             generationbestscore = 0
-            for element in self.populationlist:
+            for element in populationobject.populationlist:
                 if element.score > generationbestscore:
                     generationbestscore = element.score
-                    #bestdna = element.dna
                     if generationbestscore > currentmaxscore:
                         currentmaxscore = generationbestscore
-            if currentmaxscore < self.targetscore:
-                self.populationlist = self.newgeneration(
-                    self.target, length, self.mutationrate, self.population, self.populationlist
+            if currentmaxscore < populationobject.targetscore:
+                populationobject.populationlist = populationobject.newgeneration(
+                    populationobject.target, length, populationobject.mutationrate,
+                    populationobject.population, populationobject.populationlist
+                    )
+        return count
+    @staticmethod
+    #With given maxgen
+    def runcount_test(populationobject):
+        """Runs the simulation up to a given number of generations"""
+        currentmaxscore = 0
+        count = 0
+        stopcount = 200
+        length = len(populationobject.target)
+        while count < stopcount and currentmaxscore < populationobject.targetscore:
+            count += 1
+            generationbestscore = 0
+            for element in populationobject.populationlist:
+                if element.score > generationbestscore:
+                    generationbestscore = element.score
+                    if generationbestscore > currentmaxscore:
+                        currentmaxscore = generationbestscore
+            if currentmaxscore < populationobject.targetscore:
+                populationobject.populationlist = populationobject.newgeneration(
+                    populationobject.target, length, populationobject.mutationrate,
+                    populationobject.population, populationobject.populationlist
                     )
         return count
 
@@ -296,24 +319,33 @@ class PopulationMap(object):
         """Fills the matrix with the values of the simulation map"""
 
         fileobj = open('data.csv', 'w')
-
+        
         currentpopulation = minpopulation
         while currentpopulation <= maxpopulation:
             fileobj.write('{};'.format(currentpopulation))
 
             mutationrate = minmutationrate
             while mutationrate <= maxmutationrate:
-
+                
                 currentiteration = 0
                 sumgen = 0
-                while currentiteration < iterations:
-                    mypopulation = Population(target, mutationrate, currentpopulation)
-                    sumgen += mypopulation.runcount(maxgen)
-                    currentiteration += 1
+                mypopulationlist = [Population(target, mutationrate, currentpopulation)] * iterations
+
+                #<THREADING>
+                #pool = ThreadPool(4) sets the pool size to 4
+                #pool = ThreadPool() defaults for the number of cores in the machine
+                pool = ThreadPool()
+                #Each Thread performs an interation
+                results = pool.map(Population.runcount_test, mypopulationlist)
+                pool.join()
+                pool.close()
+                sumgen = sum(results)
+                #</THREADING>
 
                 genaverage = sumgen / iterations
                 fileobj.write('{};'.format(genaverage))
                 mutationrate += 1
+
 
             fileobj.write('\n')
             currentpopulation += 5
@@ -334,11 +366,12 @@ class PopulationMap(object):
                    self.minmutationrate, self.maxmutationrate, iterations
                   )
             )
-        print('After {} seconds'.format(start_time - time.time)
+        print('After {} seconds'.format(start_time - time.time))
 
 
 #Launch the program
 #Population('to be or not to be', 10, 100).run()
 #Population('unicorn', 5, 100).run()
 #PopulationMap('abcdefghij', 200, 30, 100, 1, 10).run(5)
-PopulationMap('abcdefghij', 200, 30, 100, 1, 10).run(5)
+popmap = PopulationMap('abcdefghij', 200, 30, 100, 1, 10) #target, maxgen, minpopulation, maxpopulation, minmutationrate, maxmutationrate
+popmap.run(5)
