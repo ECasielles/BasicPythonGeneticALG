@@ -318,28 +318,30 @@ class PopulationMap(object):
                 minmutationrate, maxmutationrate, iterations):
         """Fills the matrix with the values of the simulation map"""
 
-        fileobj = open('data.csv', 'w')
-        
+        fileobj = open('data.csv', 'w')        
+        start_time = time.time()
+
         currentpopulation = minpopulation
         while currentpopulation <= maxpopulation:
             fileobj.write('{};'.format(currentpopulation))
 
             mutationrate = minmutationrate
             while mutationrate <= maxmutationrate:
-                
                 currentiteration = 0
-                sumgen = 0
-                mypopulationlist = [Population(target, mutationrate, currentpopulation)] * iterations
-
+                #sumgen = 0
+                mypopulationlist = list()
+                while currentiteration < iterations:
+                    mypopulationlist.append(Population(target, mutationrate, currentpopulation))
+                    currentiteration += 1
                 #<THREADING>
                 #pool = ThreadPool(4) sets the pool size to 4
                 #pool = ThreadPool() defaults for the number of cores in the machine
                 pool = ThreadPool()
                 #Each Thread performs an interation
                 results = pool.map(Population.runcount_test, mypopulationlist)
-                pool.join()
+                sumgen = sum
                 pool.close()
-                sumgen = sum(results)
+                pool.join()(results)
                 #</THREADING>
 
                 genaverage = sumgen / iterations
@@ -348,6 +350,7 @@ class PopulationMap(object):
 
 
             fileobj.write('\n')
+            print('After {} seconds'.format(start_time - time.time()))
             currentpopulation += 5
 
         fileobj.close()
@@ -366,12 +369,13 @@ class PopulationMap(object):
                    self.minmutationrate, self.maxmutationrate, iterations
                   )
             )
-        print('After {} seconds'.format(start_time - time.time))
+        print('After {} seconds'.format(start_time - time.time()))
 
 
 #Launch the program
 #Population('to be or not to be', 10, 100).run()
-#Population('unicorn', 5, 100).run()
-#PopulationMap('abcdefghij', 200, 30, 100, 1, 10).run(5)
-popmap = PopulationMap('abcdefghij', 200, 30, 100, 1, 10) #target, maxgen, minpopulation, maxpopulation, minmutationrate, maxmutationrate
-popmap.run(5)
+#target, maxgen, minpopulation, maxpopulation, minmutationrate, maxmutationrate
+#popmap = PopulationMap('abcdefghij', 200, 30, 100, 1, 10)
+#popmap.run(5)
+popmap = PopulationMap('abcdefghij', 50, 50, 60, 5, 10)
+popmap.run(2)
