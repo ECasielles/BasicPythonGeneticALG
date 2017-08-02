@@ -52,168 +52,105 @@ class Population(object):
         self.mutationrate = mutationrate
         self.population = population
         self.targetscore = 2**len(target)
-        self.populationlist = Population.initpopulation(target, len(target), population)
+        self.populationlist = Population.initpopulation(target, population)
 
     ##GENETIC RULES##
 
     #Initialization
     @staticmethod
-    def initpopulation(target, length, population):
+    def initpopulation(target, population):
         """Initializes population with a random set of individuals"""
-        currentpopulation = 0
-        newpopulationlist = list()
-        while currentpopulation < population:
-            newdna = ''
-            count = 0
-            while count < length:
-                newdna = newdna + Population.newchar()
-                count += 1
+        population_tuple = ()
+        for i in range(population):
             newchild = GeneticElement()
-            newchild.dna = newdna
-            newchild.score = Population.fitnessfunction(target, length, newdna)
-            newpopulationlist.append(newchild)
-            currentpopulation += 1
-        return newpopulationlist
+            newchild.dna = ''.join(Population.newchar() for c in target)
+            newchild.score = Population.fitnessfunction(target, newchild.dna)
+            population_tuple = (*population_tuple, newchild)
+        return population_tuple
 
     #Selection
     @staticmethod
-    def fitnessfunction(target, length, dna):
+    def fitnessfunction(target, dna):
         """Evaluates a given individual's score"""
-        score = 0
-        position = 0
-        while position < length:
-            if target[position] == dna[position]:
-                score += 1
-            position += 1
-        return 2**score
+        return 2**sum(1 for i in range(len(target)) if target[i] == dna[i])
 
     #Heredity
     @staticmethod
-    def crossover(length, parent_a, parent_b):
-        """Performs parental gene crosover"""
-        newdna = ''
-        score_a = parent_a.score
-        score_b = parent_b.score
-        totalscore = score_a + score_b
-        count = 0
-        while count < length:
-            #The fittest is more likely to pass its genes
-            if random.randint(0, totalscore) < score_a:
-                newdna = newdna + parent_a.dna[count]
-            else:
-                newdna = newdna + parent_b.dna[count]
-            count += 1
-        return newdna
+    def crossover(parent_a, parent_b):
+        """Performs parental gene crosover."""
+        #The fittest is more likely to pass its genes
+        return ''.join(character if (random.random() < parent_a.score / (parent_a.score + parent_b.score)) else parent_b.dna[i] for i, character in enumerate(parent_a.dna))
 
     #Variation
     @staticmethod
     def newchar():
-        """Generates a random new character"""
-        char = random.randint(63, 122)
-        if char == 63:
-            char = 32
-        if char == 64:
-            char = 46
-        return chr(char)
+        """Generates a random new character from space (ASCII 32) to tilde (ASCII 126)."""
+        return chr(random.randint(32, 126))
 
     @staticmethod
     def mutation(dna, mutationrate):
-        """Performs mutation on a given Dna with current mutation rate"""
-        newdna = ''
-        for character in dna:
-            if random.randint(0, 99) < mutationrate:
-                newdna = newdna + Population.newchar()
-            else:
-                newdna = newdna + character
-        return newdna
+        """Performs mutation on a given Dna with current mutation rate."""
+        #Mutation rate is the chance of a gene to be changed (ranges from 0 to 1)
+        return ''.join(Population.newchar() if (random.random() < mutationrate) else character for character in dna)
 
     @staticmethod
-    def crossmutation(target, length, parent_a, parent_b, mutationrate):
-        """Crossover + Mutation. Returns a brand new individual"""
+    def crossmutation(target, parent_a, parent_b, mutationrate):
+        """Crossover + Mutation. Returns a brand new individual."""
         newchild = GeneticElement()
-        dna = Population.crossover(length, parent_a, parent_b)
-        newchild.dna = Population.mutation(dna, mutationrate)
-        newchild.score = Population.fitnessfunction(target, length, newchild.dna)
+        newchild.dna = Population.mutation(Population.crossover(parent_a, parent_b), mutationrate)
+        newchild.score = Population.fitnessfunction(target, newchild.dna)
         return newchild
 
     ##GENETIC ENGINE##
-
     #These methods manage the population list
-    def gettotalscore(self):
-        """Sums the score of all the population to do the probability calculations"""
-        newscore = 0
-        for element in self.populationlist:
-            newscore += element.score
-        return newscore
-    def pickrandomparent(self, lastscore):
-        """Returns a random parent Id with probability pi / (p1 + p2 + ... + pn)
-        with p being its score. It is executed when there's 2 or more eligible parents."""
-        comparablescore = random.randint(0, lastscore)
-        currentscore = 0
-        count = 0
-        while currentscore < comparablescore:
-            currentscore += self.populationlist[count].score
-            if currentscore < comparablescore:
-                count += 1
-        return count
-    def newgeneration(self, target, length, mutationrate, population, populationlist):
-        """Creates one generation."""
-        lastscore = self.gettotalscore()
-        newgenerationlist = list()
-        #lastscore = 0 implies there's no preferred parent
-        if lastscore == 0:
-            count = 0
-            while count < population:
+        
+    @staticmethod
+    def next_generation(target, length, mutationrate, population, population_list):
+        """Returns next generation elements as list."""
+        ###ERROR HERE####
+        scores = ([element.score for element in population_list])
+        population_score = sum(score for score in scores)
+        next_generation_tuple = ()
+        
+        #population_score = 0 implies there's no preferred parent
+        if population_score == 0:
+            for i in range(population):
                 #Randomly picks 2 parents
-                parentcouple = random.sample(populationlist, 2)
-                parent_a = parentcouple[0]
-                parent_b = parentcouple[1]
+                parentcouple = random.sample(population_list, 2)
                 #Creates new child
-                newchild = Population.crossmutation(
-                    target, length, parent_a, parent_b, mutationrate
-                    )
-                newgenerationlist.append(newchild)
-                count += 1
+                next_generation_tuple = (*next_generation_tuple, Population.crossmutation(target, parentcouple[0], parentcouple[1], mutationrate))
         else:
             currentmaxscore = 0
             maxscoreid = -1
-            for i, element in enumerate(populationlist):
+            for i, element in enumerate(population_list):
                 if element.score > currentmaxscore:
                     currentmaxscore = element.score
                     maxscoreid = i
-            #lastscore = currentmaxscore implies there's just 1 preferred parent since lastscore > 0
-            if lastscore == currentmaxscore:
-                count = 0
-                while count < population:
-                    parent_id_b = random.randint(1, population) - 1
+            #population_score = currentmaxscore implies there's just 1 preferred parent since population_score > 0
+            if population_score == currentmaxscore:
+                parent_a = population_list[maxscoreid]
+                for i in range(population_list):
+                    parent_id_b = random.choices(population_list, scores, 1)
                     #Forces both parents to be different
                     while parent_id_b == maxscoreid:
-                        parent_id_b = random.randint(1, population) - 1
-                    parent_a = populationlist[maxscoreid]
-                    parent_b = populationlist[parent_id_b]
+                        parent_id_b = random.choices(population_list, scores, 1)
+                    parent_b = population_list[parent_id_b]
                     #Creates child
-                    newchild = Population.crossmutation(
-                        target, length, parent_a, parent_b, mutationrate
-                        )
-                    newgenerationlist.append(newchild)
-                    count += 1
-            #lastscore != myMaxScore is the regular case where there's 2 or more eligible parents
+                    newchild = Population.crossmutation(target, parent_a, parent_b, mutationrate)
+                    next_generation_tuple = (*next_generation_tuple, newchild)
+            #population_score != myMaxScore is the regular case where there's 2 or more eligible parents
             else:
                 count = 0
-                while count < self.population:
-                    parent_id_a = self.pickrandomparent(lastscore)
-                    parent_id_b = self.pickrandomparent(lastscore)
+                while count < population:
+                    parent_a = random.choices(population_list, scores, 1)
+                    parent_b = random.choices(population_list, scores, 1)
                     #Forces all parents to be different
-                    while parent_id_a == parent_id_b:
-                        parent_id_b = self.pickrandomparent(lastscore)
-                    #Creates parents
-                    parent_a = populationlist[parent_id_a]
-                    parent_b = populationlist[parent_id_b]
+                    ###IDS???####
+                    while parent_a.id == parent_b.id:
+                        parent_b = random.choices(population_list, scores, 1)
                     #Creates child
-                    newchild = Population.crossmutation(
-                        target, length, parent_a, parent_b, mutationrate
-                        )
-                    newgenerationlist.append(newchild)
+                    newchild = Population.crossmutation(target, parent_a, parent_b, mutationrate)
+                    next_generation_tuple = (*next_generation_tuple, newchild)
                     count += 1
         return newgenerationlist
 

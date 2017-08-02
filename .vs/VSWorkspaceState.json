@@ -1,8 +1,9 @@
 {
   "ExpandedNodes": [
     "",
-    "\\Python_WordFinder_GA"
+    "\\Python_WordFinder_GA",
+    "\\Python_WordFinder_GA\\test_files"
   ],
-  "SelectedNode": "\\Python_WordFinder_GA\\wordfinder_ga.py",
+  "SelectedNode": "\\Python_WordFinder_GA\\wordfinder_ga_threading.py",
   "PreviewInSolutionExplorer": false
 }
