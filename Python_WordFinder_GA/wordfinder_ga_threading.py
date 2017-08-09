@@ -33,12 +33,18 @@ from multiprocessing.dummy import Pool as ThreadPool
 #   Too much mutation takes the problem to brute force approach.
 #   0 mutation relays on the implicit variation of the initial pop.
 
+
 class GeneticElement(object):
     """Represents an individual with its own dna and associated score."""
     
-    def __init__(self, dna = None):
-        if dna != None:
+    _dna = ''
+    _score = 0
+
+    def __init__(self, dna = None, score = None):
+        if dna:
             self._dna = dna
+        if score:
+            self._score = score
     
     @property
     def dna(self):
@@ -56,283 +62,313 @@ class GeneticElement(object):
     def score(self, score):
         self._score = score
 
-    #Operator overloading for list/tuple management
-    def __lt__(self, other):
-        return self._score < other._score
-
-    def ___le__(self, other):
-        return self._score <= other._score
-
-    def __eq__(self, other):
-        return self._score == other._score
-
-    def __ne__(self, other):
-        return self._score != other._score
-
-    def __gt__(self, other):
-        return self._score > other._score
-
-    def __ge__(self, other):
-        return self._score >= other._score
-
 
 class Population(object):
     """Represents a population with parameters: target, mutation rate, population."""
+    _scoring = ()
+    _scoring_sum = 0
+    _max_score = -1
+    _max_score_id = -1    
 
-    def __init__(self, target, mutationrate, population_size):
+    def __init__(self, target, mutation_rate, population_size):
         self._target = target
-        self._mutationrate = mutationrate
-        self._population = population
-        self._targetscore = 2**len(target)
-        self._population = initpopulation(target, population_size)
+        self._mutation_rate = mutation_rate
+        self._population_size = population_size
+        self._length = len(target)
+        self._target_score = 2 ** self._length
+        self._population = self.initpopulation(target, population_size)
+        
+    @property
+    def scoring(self): return self._scoring
+    @scoring.setter
+    def scoring(self, scoring): self._scoring = scoring
+    @property
+    def scoring_sum(self): return self._scoring_sum
+    @scoring_sum.setter
+    def scoring_sum(self, scoring_sum): self._scoring_sum = scoring_sum
+    @property
+    def max_score(self): return self._max_score
+    @max_score.setter
+    def max_score(self, max_score): self._max_score = max_score
+    @property
+    def max_score_id(self): return self._max_score_id
+    @max_score_id.setter
+    def max_score_id(self, max_score_id): self._max_score_id = max_score_id
 
     ##GENETIC RULES##
 
     #Initialization
-    @staticmethod
-    def initpopulation(target, population_size):
-        """Initializes population with a random set of individuals"""
+    def initpopulation(self, target, population_size):
+        """Initializes population with random elements"""
         population_tuple = ()
+
         for i in range(population_size):
-            newchild = GeneticElement()
-            newchild.dna = ''.join(newchar() for c in target)
-            newchild.score = fitnessfunction(target, newchild.dna)
-            population_tuple += newchild
+            dna = ''
+            score = 0
+
+            for c in target:
+                #Generates a random new character from space (ASCII 32) to tilde (ASCII 126)
+                character = chr(random.randint(32, 126))
+                dna += character
+                if c == character:
+                    score += 1
+
+            score = 2 ** score
+            if score > self.max_score:
+                self.max_score = score
+                self.max_score_id = i
+            self.scoring += (score, )
+            self.scoring_sum += score
+            population_tuple += (GeneticElement(dna, score), )
+
         return population_tuple
+    
+    #Selection, Heredity and Variation
+    def crossmutation(self, target, parent_a, parent_b, mutation_rate, position):
+        """Performs parental gene crosover, mutation and scoring returning a new element."""
+        dna = ''
+        score = 0
 
-    #Selection
-    @staticmethod
-    def fitnessfunction(target, dna):
-        """Evaluates a given individual's score"""
-        return 2**sum(1 for i in range(len(target)) if target[i] == dna[i])
+        divisor = parent_a.score + parent_b.score
+        if divisor == 0:
+            ratio = 0
+        else:
+            ratio = parent_a.score / divisor
 
-    #Heredity
-    @staticmethod
-    def crossover(parent_a, parent_b):
-        """Performs parental gene crosover."""
-        #The fittest is more likely to pass its genes
-        return ''.join(character if (random.random() < parent_a.score / (parent_a.score + parent_b.score)) else parent_b.dna[i] for i, character in enumerate(parent_a.dna))
+        if ratio == 0:
+            for i in range(self._length):
+                character = chr(random.randint(32, 126))
+                dna += character
+                if character == target[i]:
+                    score += 1
+        else:
+            for i in range(self._length):
+                #Mutation rate is the chance of a gene to be changed (ranges from 0 to 1)
+                if random.random() < mutation_rate:
+                    character = chr(random.randint(32, 126))
+                else:
+                    #The fittest is more likely to pass its genes
+                    if random.random() < ratio:
+                        character = parent_a.dna[i]
+                    else:
+                        character = parent_b.dna[i]
+                dna += character
+                if character == target[i]:
+                    score += 1
 
-    #Variation
-    @staticmethod
-    def newchar():
-        """Generates a random new character from space (ASCII 32) to tilde (ASCII 126)."""
-        return chr(random.randint(32, 126))
+        score = 2 ** score
+        if score > self.max_score:
+            self.max_score = score
+            self.max_score_id = position
+        self.scoring += (score, )
+        self.scoring_sum += score
 
-    @staticmethod
-    def mutation(dna, mutationrate):
-        """Performs mutation on a given Dna with current mutation rate."""
-        #Mutation rate is the chance of a gene to be changed (ranges from 0 to 1)
-        return ''.join(newchar() if (random.random() < mutationrate) else character for character in dna)
-
-    @staticmethod
-    def crossmutation(target, parent_a, parent_b, mutationrate):
-        """Crossover + Mutation. Returns a brand new individual."""
-        newchild = GeneticElement()
-        newchild.dna = mutation(crossover(parent_a, parent_b), mutationrate)
-        newchild.score = fitnessfunction(target, newchild.dna)
-        return newchild
+        return GeneticElement(dna, score)
 
     ##GENETIC ENGINE##
-    #These methods manage the population list
-            
-    @staticmethod
-    def next_generation(target, length, mutationrate, population, population_size):
-        """Returns next generation elements as list."""
-        scores = tuple(element.score for element in population)
-        population_score = sum(score for score in scores)
-        next_generation = ()
-        
-        #population_score = 0 implies there's no preferred parent
-        if population_score == 0:
-            for i in range(population_size):
-                #Randomly picks 2 parents
-                parentcouple = random.sample(population, 2)
-                #Adds a new child
-                next_generation_list.append(crossmutation(target, parentcouple[0], parentcouple[1], mutationrate))
+
+    #New generation engine
+    def next_generation(self):
+        '''Returns a new tuple of children looping through the population tuple'''
+        new_generation = ()
+
+        if self.scoring_sum > self.max_score:
+            #This is the regular case where there's 2 or more eligible parents
+            self.max_score = -1
+            self.max_score_id = -1
+
+            #Scores have to be normalized to be used as a distribution function
+            scores = ()
+            for score in self.scoring:
+                scores += (score / self.scoring_sum, )
+            #Resets the scores
+            self.scoring = ()
+            self.scoring_sum = 0
+
+            for i in range(self._population_size):
+                parents = numpy.random.choice(self._population, 2, False, scores)
+                new_generation += (self.crossmutation(self._target, parents[0], parents[1], self._mutation_rate, i), )
+
         else:
-            maxscoreid = population.index(max(population))
-            parent_alpha = population[maxscoreid]
-            #If population_score equals current max score it implies there's just 1 preferred parent since population_score > 0
-            if population_score == parent_alpha.score:
-                for i in range(population_size):
-                    parent_id_b = random.choices(population, scores, 1)
-                    #Forces both parents to be different
-                    while parent_id_b == maxscoreid:
-                        parent_id_b = random.choices(population, scores, 1)
-                    #Adds a new child
-                    next_generation += crossmutation(target, parent_alpha, population[parent_id_b], mutationrate)
-            #population_score != myMaxScore is the regular case where there's 2 or more eligible parents
+            #Resets the scores
+            self.max_score = -1
+            self.scoring = ()
+
+            if self.scoring_sum == 0:
+                #scores_sum == 0 is the starting case with no preferred parent
+                self.max_score_id = -1
+
+                for i in range(self._population_size):
+                    parents = numpy.random.choice(self._population, 2, False)
+                    new_generation += (self.crossmutation(self._target, parents[0], parents[1], self._mutation_rate, i), )
+
             else:
-                for i in range(population):
-                    parent_a = random.choices(population, scores, 1)
-                    parent_b = random.choices(population, scores, 1)
-                    #Forces all parents to be different
-                    while parent_a.id == parent_b.id:
-                        parent_b = random.choices(population, scores, 1)
-                    #Adds a new child                    
-                    next_generation += crossmutation(target, parent_a, parent_b, mutationrate)
-        return next_generation
+                #scores_sum == max_score is the (rare) case when there's just 1 parent (an alpha) with score > 0
+                parent_alpha = self._population[self.max_score_id]
+                #Resets the scores
+                self.max_score_id = -1
+                self.scoring_sum = 0
+
+                reduced_range = self._population_size - 1
+
+                for i in range(reduced_range):
+                    #To skip the alpha parent we choose from all but 1 parent
+                    #This way the alpha parent can't mate itself
+                    parent_id = numpy.random.randint(length)
+                    if parent_id >= self.max_score_id:
+                        parent_id += 1
+                    new_generation += (self.crossmutation(self._target, parent_alpha, self._population[parent_id], self._mutation_rate, i), )
+
+        return new_generation
 
     ##THE MAIN SCRIPT##
     def run(self):
         """Runs the simulation"""
-        currentbestscore = 0
-        count = 0
+        count = 1
         print('')
         print('\t{}\t{}\t\t {}'.format('Generation', 'Best', 'Score'))
         print('\t---------------------------------------------------')
-        length = len(self.target)
-        maxscore = self.targetscore
-        while currentbestscore < self.targetscore:
+        print('\t{}\t\t{}\t\t {}/{}'.format(count, self._population[self.max_score_id].dna, self.max_score, self.scoring_sum))
+        while self.max_score < self._target_score:
+            self._population = self.next_generation()
             count += 1
-            bestdna = ''
-            generationbestscore = 0
-            for element in self.populationlist:
-                if element.score > generationbestscore:
-                    generationbestscore = element.score
-                    bestdna = element.dna
-                    if generationbestscore > currentbestscore:
-                        currentbestscore = generationbestscore
-            print('\t{}\t\t{}\t\t {}/{}'.format(count, bestdna, generationbestscore, maxscore))
-            if currentbestscore < self.targetscore:
-                self.populationlist = self.newgeneration(
-                    self.target, length, self.mutationrate, self.population, self.populationlist
-                    )
+            print('\t{}\t\t{}\t\t {}/{}'.format(count, self._population[self.max_score_id].dna, self.max_score, self.scoring_sum))
         print('')
-        print('\tFound \'' + self.target + '\' after ' + str(count) + ' generations.')
+        print('\tFound \'' + self._target + '\' after ' + str(count) + ' generations.')
         print(
-            '\tMutation Rate: ' + str(self.mutationrate) + '% chance.\n' +
-            '\tPopulation: ' + str(self.population) + ' individuals.'
+            '\tMutation Rate: ' + str(self._mutation_rate) + '% chance.\n' +
+            '\tPopulation: ' + str(self._population_size) + ' elements.'
             )
-    @staticmethod
-    def runcount(stopcount, populationobject):
-        """Runs the simulation up to a given number of generations"""
-        currentmaxscore = 0
-        count = 0
-        length = len(populationobject.target)
-        while count < stopcount and currentmaxscore < populationobject.targetscore:
-            count += 1
-            generationbestscore = 0
-            for element in populationobject.populationlist:
-                if element.score > generationbestscore:
-                    generationbestscore = element.score
-                    if generationbestscore > currentmaxscore:
-                        currentmaxscore = generationbestscore
-            if currentmaxscore < populationobject.targetscore:
-                populationobject.populationlist = populationobject.newgeneration(
-                    populationobject.target, length, populationobject.mutationrate,
-                    populationobject.population, populationobject.populationlist
-                    )
-        return count
-    @staticmethod
-    #With given maxgen
-    def runcount_test(populationobject):
-        """Runs the simulation up to a given number of generations"""
-        currentmaxscore = 0
-        count = 0
-        stopcount = 200
-        length = len(populationobject.target)
-        while count < stopcount and currentmaxscore < populationobject.targetscore:
-            count += 1
-            generationbestscore = 0
-            for element in populationobject.populationlist:
-                if element.score > generationbestscore:
-                    generationbestscore = element.score
-                    if generationbestscore > currentmaxscore:
-                        currentmaxscore = generationbestscore
-            if currentmaxscore < populationobject.targetscore:
-                populationobject.populationlist = populationobject.newgeneration(
-                    populationobject.target, length, populationobject.mutationrate,
-                    populationobject.population, populationobject.populationlist
-                    )
-        return count
 
-class PopulationMap(object):
-    """Runs all simulations within given ranges of population and mutation rates"""
-    target = ''
-    maxgen = 0
-    minpopulation = 0
-    maxpopulation = 0
-    minmutationrate = 0
-    maxmutationrate = 0
+#    @staticmethod
+#    def runcount(stopcount, populationobject):
+#        """Runs the simulation up to a given number of generations"""
+#        currentmaxscore = 0
+#        count = 0
+#        length = len(populationobject.target)
+#        while count < stopcount and currentmaxscore < populationobject.targetscore:
+#            count += 1
+#            generationbestscore = 0
+#            for element in populationobject.populationlist:
+#                if element.score > generationbestscore:
+#                    generationbestscore = element.score
+#                    if generationbestscore > currentmaxscore:
+#                        currentmaxscore = generationbestscore
+#            if currentmaxscore < populationobject.targetscore:
+#                populationobject.populationlist = populationobject.newgeneration(
+#                    populationobject.target, length, populationobject.mutationrate,
+#                    populationobject.population, populationobject.populationlist
+#                    )
+#        return count
+#    @staticmethod
+#    #With given maxgen
+#    def runcount_test(populationobject):
+#        """Runs the simulation up to a given number of generations"""
+#        currentmaxscore = 0
+#        count = 0
+#        stopcount = 200
+#        length = len(populationobject.target)
+#        while count < stopcount and currentmaxscore < populationobject.targetscore:
+#            count += 1
+#            generationbestscore = 0
+#            for element in populationobject.populationlist:
+#                if element.score > generationbestscore:
+#                    generationbestscore = element.score
+#                    if generationbestscore > currentmaxscore:
+#                        currentmaxscore = generationbestscore
+#            if currentmaxscore < populationobject.targetscore:
+#                populationobject.populationlist = populationobject.newgeneration(
+#                    populationobject.target, length, populationobject.mutationrate,
+#                    populationobject.population, populationobject.populationlist
+#                    )
+#        return count
 
-    #Constructor
-    def __init__(self, target, maxgen,
-                 minpopulation, maxpopulation, minmutationrate, maxmutationrate):
-        self.target = target
-        self.maxgen = maxgen
-        self.minpopulation = minpopulation
-        self.maxpopulation = maxpopulation
-        self.minmutationrate = minmutationrate
-        self.maxmutationrate = maxmutationrate
+#class PopulationMap(object):
+#    """Runs all simulations within given ranges of population and mutation rates"""
+#    target = ''
+#    maxgen = 0
+#    minpopulation = 0
+#    maxpopulation = 0
+#    minmutationrate = 0
+#    maxmutationrate = 0
 
-    #TODO: Matrix operations and exception handling
+#    #Constructor
+#    def __init__(self, target, maxgen,
+#                 minpopulation, maxpopulation, minmutationrate, maxmutationrate):
+#        self.target = target
+#        self.maxgen = maxgen
+#        self.minpopulation = minpopulation
+#        self.maxpopulation = maxpopulation
+#        self.minmutationrate = minmutationrate
+#        self.maxmutationrate = maxmutationrate
 
-    #Matrix simulator
-    def fillmap(self,
-                target, maxgen, minpopulation, maxpopulation,
-                minmutationrate, maxmutationrate, iterations):
-        """Fills the matrix with the values of the simulation map"""
+#    #TODO: Matrix operations and exception handling
 
-        fileobj = open('data.csv', 'w')        
-        start_time = time.time()
+#    #Matrix simulator
+#    def fillmap(self,
+#                target, maxgen, minpopulation, maxpopulation,
+#                minmutationrate, maxmutationrate, iterations):
+#        """Fills the matrix with the values of the simulation map"""
 
-        currentpopulation = minpopulation
-        while currentpopulation <= maxpopulation:
-            fileobj.write('{};'.format(currentpopulation))
+#        fileobj = open('data.csv', 'w')        
+#        start_time = time.time()
 
-            mutationrate = minmutationrate
-            while mutationrate <= maxmutationrate:
-                currentiteration = 0
-                #sumgen = 0
-                mypopulationlist = list()
-                while currentiteration < iterations:
-                    mypopulationlist.append(Population(target, mutationrate, currentpopulation))
-                    currentiteration += 1
-                #<THREADING>
-                #pool = ThreadPool(4) sets the pool size to 4
-                #pool = ThreadPool() defaults for the number of cores in the machine
-                pool = ThreadPool()
-                #Each Thread performs an interation
-                results = pool.map(Population.runcount_test, mypopulationlist)
-                sumgen = sum
-                pool.close()
-                pool.join()(results)
-                #</THREADING>
+#        currentpopulation = minpopulation
+#        while currentpopulation <= maxpopulation:
+#            fileobj.write('{};'.format(currentpopulation))
 
-                genaverage = sumgen / iterations
-                fileobj.write('{};'.format(genaverage))
-                mutationrate += 1
+#            mutationrate = minmutationrate
+#            while mutationrate <= maxmutationrate:
+#                currentiteration = 0
+#                #sumgen = 0
+#                mypopulationlist = list()
+#                while currentiteration < iterations:
+#                    mypopulationlist.append(Population(target, mutationrate, currentpopulation))
+#                    currentiteration += 1
+#                #<THREADING>
+#                #pool = ThreadPool(4) sets the pool size to 4
+#                #pool = ThreadPool() defaults for the number of cores in the machine
+#                pool = ThreadPool()
+#                #Each Thread performs an interation
+#                results = pool.map(Population.runcount_test, mypopulationlist)
+#                sumgen = sum
+#                pool.close()
+#                pool.join()(results)
+#                #</THREADING>
+
+#                genaverage = sumgen / iterations
+#                fileobj.write('{};'.format(genaverage))
+#                mutationrate += 1
 
 
-            fileobj.write('\n')
-            print('After {} seconds'.format(start_time - time.time()))
-            currentpopulation += 5
+#            fileobj.write('\n')
+#            print('After {} seconds'.format(start_time - time.time()))
+#            currentpopulation += 5
 
-        fileobj.close()
+#        fileobj.close()
 
-    #Runs the script
-    def run(self, iterations):
-        """Runs the matrix simulator"""
-        start_time = time.time()
-        self.fillmap(
-            self.target, self.maxgen, self.minpopulation, self.maxpopulation,
-            self.minmutationrate, self.maxmutationrate, iterations
-            )
-        print(
-            "Mapped {} from {} to {} individuals with {}% to {}% mutation chance on {} iterations".
-            format(self.target, self.minpopulation, self.maxpopulation,
-                   self.minmutationrate, self.maxmutationrate, iterations
-                  )
-            )
-        print('After {} seconds'.format(start_time - time.time()))
+#    #Runs the script
+#    def run(self, iterations):
+#        """Runs the matrix simulator"""
+#        start_time = time.time()
+#        self.fillmap(
+#            self.target, self.maxgen, self.minpopulation, self.maxpopulation,
+#            self.minmutationrate, self.maxmutationrate, iterations
+#            )
+#        print(
+#            "Mapped {} from {} to {} individuals with {}% to {}% mutation chance on {} iterations".
+#            format(self.target, self.minpopulation, self.maxpopulation,
+#                   self.minmutationrate, self.maxmutationrate, iterations
+#                  )
+#            )
+#        print('After {} seconds'.format(start_time - time.time()))
+
 
 
 #Launch the program
-#Population('to be or not to be', 10, 100).run()
+Population('to be or not to be', 0.1, 100).run()
 #target, maxgen, minpopulation, maxpopulation, minmutationrate, maxmutationrate
 #popmap = PopulationMap('abcdefghij', 200, 30, 100, 1, 10)
 #popmap.run(5)
-popmap = PopulationMap('abcdefghij', 50, 50, 60, 5, 10)
-popmap.run(2)
+#popmap = PopulationMap('abcdefghij', 50, 50, 60, 5, 10)
+#popmap.run(2)

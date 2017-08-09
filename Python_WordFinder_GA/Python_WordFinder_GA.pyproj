@@ -4,13 +4,14 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>0849bc93-f2ff-42ca-b244-97a4e743bb24</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>Python_WordFinder_GA.py</StartupFile>
+    <StartupFile>wordfinder_ga_threading.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>
     <Name>Python_WordFinder_GA</Name>
     <RootNamespace>Python_WordFinder_GA</RootNamespace>
+    <InterpreterId>Global|PythonCore|3.6</InterpreterId>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -22,6 +23,12 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Python_WordFinder_GA.py" />
+    <Compile Include="wordfinder_ga.py" />
+    <Compile Include="wordfinder_ga_fork.py" />
+    <Compile Include="wordfinder_ga_threading.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <InterpreterReference Include="Global|PythonCore|3.6" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
