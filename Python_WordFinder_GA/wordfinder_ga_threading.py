@@ -1,8 +1,10 @@
 ﻿"""Basic architecture for a simple Genetic Algorithm example."""
 import random
-import numpy
+import numpy as np
 import time
-#from multiprocessing.dummy import Pool as ThreadPool
+from multiprocessing import Pool
+from multiprocessing.dummy import Pool as ThreadPool
+from operator import methodcaller
 
 
 # 1 - Heredity
@@ -65,6 +67,7 @@ class Population(object):
         self._length = len(target)
         self._target_score = 2 ** self._length
         self._population = self.initpopulation(target, population_size)
+        self._reduced_range = self._population_size - 1
         
     @property
     def scoring(self): return self._scoring
@@ -97,7 +100,7 @@ class Population(object):
 
             for c in target:
                 #Generates a random new character from space (ASCII 32) to tilde (ASCII 126)
-                character = chr(random.randint(32, 126))
+                character = chr(np.random.randint(32, 127))
                 dna += character
                 if c == character:
                     score += 1
@@ -118,33 +121,43 @@ class Population(object):
 
         dna = ''
         score = 0
-
         divisor = parent_a.score + parent_b.score
-        if divisor == 0:
-            ratio = 0
-        else:
-            ratio = parent_a.score / divisor
 
-        if ratio == 0:
+        if divisor == 0:
+            #When both parents have 0 score, creates new random child
             for i in range(self._length):
-                character = chr(random.randint(32, 126))
+                character = chr(np.random.randint(32, 127))
                 dna += character
                 if character == target[i]:
                     score += 1
         else:
-            for i in range(self._length):
-                #Mutation rate is the chance of a gene to be changed (ranges from 0 to 1)
-                if random.random() < mutation_rate:
-                    character = chr(random.randint(32, 126))
-                else:
-                    #The fittest is more likely to pass its genes
-                    if random.random() < ratio:
-                        character = parent_a.dna[i]
+            #Ratio is relative fitness between parents
+            ratio = parent_a.score / divisor            
+
+            if ratio == 0:
+                #When ratio is 0, only parent_b has score > 0
+                for i in range(self._length):
+                    if np.random.random() < mutation_rate:
+                        character = chr(np.random.randint(32, 127))
                     else:
                         character = parent_b.dna[i]
-                dna += character
-                if character == target[i]:
-                    score += 1
+                    dna += character
+                    if character == target[i]:
+                        score += 1
+            else:
+                for i in range(self._length):
+                    #Mutation rate is the chance of a gene to be changed (ranges from 0 to 1)
+                    if np.random.random() < mutation_rate:
+                        character = chr(np.random.randint(32, 127))
+                    else:
+                        #The fittest is more likely to pass its genes
+                        if np.random.random() < ratio:
+                            character = parent_a.dna[i]
+                        else:
+                            character = parent_b.dna[i]
+                    dna += character
+                    if character == target[i]:
+                        score += 1
 
         score = 2 ** score
         if score > self.max_score:
@@ -177,7 +190,7 @@ class Population(object):
             self.scoring_sum = 0
 
             for i in range(self._population_size):
-                parents = numpy.random.choice(self._population, 2, False, scores)
+                parents = np.random.choice(self._population, 2, False, scores)
                 new_generation += (self.crossmutation(self._target, parents[0], parents[1], self._mutation_rate, i), )
 
         else:
@@ -190,7 +203,7 @@ class Population(object):
                 self.max_score_id = -1
 
                 for i in range(self._population_size):
-                    parents = numpy.random.choice(self._population, 2, False)
+                    parents = np.random.choice(self._population, 2, False)
                     new_generation += (self.crossmutation(self._target, parents[0], parents[1], self._mutation_rate, i), )
 
             else:
@@ -200,12 +213,10 @@ class Population(object):
                 self.max_score_id = -1
                 self.scoring_sum = 0
 
-                reduced_range = self._population_size - 1
-
-                for i in range(reduced_range):
+                for i in range(self._reduced_range):
                     #To skip the alpha parent we choose from all but 1 parent
                     #This way the alpha parent can't mate itself
-                    parent_id = numpy.random.randint(length)
+                    parent_id = np.random.randint(length)
                     if parent_id >= self.max_score_id:
                         parent_id += 1
                     new_generation += (self.crossmutation(self._target, parent_alpha, self._population[parent_id], self._mutation_rate, i), )
@@ -263,48 +274,59 @@ class PopulationMap(object):
     #TODO: Matrix operations and exception handling
 
     #Matrix simulator
-    def simulator(self, iterations, max_generation = None):
-        """Fills the matrix with the values of the simulation map"""
-
+    def write_to_file(self, data):
         fileobj = None
         try:
-            fileobj = open('data.csv', 'w')
-            #Top row: all studied mutation rates
-            fileobj.write('{};'.format(''))
-            tmp_mmr = int(self._min_mutationrate * 100)
-            tmp_mrs = int(self._mutation_rate_step * 100)
-            tmp_Mmr = int(self._max_mutationrate * 100) + tmp_mrs
-            for current_mutation_rate in range(tmp_mmr, tmp_Mmr, tmp_mrs):
-                fileobj.write('{}%;'.format(current_mutation_rate))
-            fileobj.write('\n')
-
-            tmp_mp = self._max_population + self._population_step
-            for current_population in range(self._min_population, tmp_mp, self._population_step):
-                #Left column: each studied population
-                fileobj.write('{};'.format(current_population))
-
-                for current_mutation_rate in range(tmp_mmr, tmp_Mmr, tmp_mrs):
-                    cumulative_generations = 0
-                    #CORREGIR LA CHAPUZA#
-                    chapuza = current_mutation_rate / 100
-                    #Sum the values of the final generation value for every simulation
-                    for current_iteration in range(iterations):
-                        cumulative_generations += Population(self._target, current_population, chapuza).run_silent(max_generation)
-                    #Middle rows: all average generations
-                    average = cumulative_generations / iterations
-                    fileobj.write('{};'.format(average))
-
-                fileobj.write('\n')
+            fileobj = open('data.csv', 'w')    
+            fileobj.write(data)
+        
         except Exception as e:
             print(e)
+        
         finally:
             if fileobj is not None:
                 fileobj.close()
 
+    def simulator(self, iterations, max_generation = None):
+        """Fills the matrix with the values of the simulation map"""
+        
+        data = ''
+        #Top row: all studied mutation rates
+        mutation_numpoints = 1 + int(round((self._max_mutationrate - self._min_mutationrate) /self._mutation_rate_step))
+        mutation_ranges = np.linspace(self._min_mutationrate, self._max_mutationrate, mutation_numpoints).tolist()
+        for current_mutation_rate in mutation_ranges:
+            data += '{}%;'.format(round(current_mutation_rate))
+        data += '\n'
+
+        for current_population in range(self._min_population, self._max_population + self._population_step, self._population_step):
+            #Left column: each studied population
+            data += '{};'.format(current_population)
+            
+            for current_mutation_rate in mutation_ranges:
+                population_list = list()
+                #Sum the values of the final generation value for every simulation
+                for current_iteration in range(iterations):
+                    population_list.append(Population(self._target, current_population, round(current_mutation_rate)))
+                
+                #defaults for the number of cores in the machine
+                pool = ThreadPool()
+                results = pool.map(methodcaller('run_silent', max_generation), population_list)
+                average = sum(results) / iterations
+                pool.close()
+                pool.join()
+                print(time.time(), current_population, round(current_mutation_rate), average)
+
+                #Middle rows: all average generations
+                data += '{};'.format(average)
+
+            data += '\n'
+            
+        self.write_to_file(data)
+
     #Runs the script
     def run(self, iterations, max_generation):
         """Runs the matrix simulator"""
-
+        
         start_time = time.time()
         self.simulator(iterations, max_generation)
         print('')
@@ -323,8 +345,8 @@ class PopulationMap(object):
 #   minpopulation, maxpopulation, population_step, 
 #   minmutationrate, maxmutationrate, mutation_rate_step
 #PopulationMap('abcdefghij', 200, 30, 100, 1, 10).run(5, 200)
-#PopulationMap('unicorn', 30, 100, 5, 0.01, 0.1, 0.01).run(5, None)
-PopulationMap('unicorn', 30, 100, 5, 0.01, 0.10, 0.01).run(4, 200)
+#PopulationMap('unicorn', 30, 150, 5, 0.01, 0.20, 0.01).run(5, 200)
+PopulationMap('unicorn', 100, 125, 5, 0.10, 0.25, 0.01).run(5, None)
 
 #TODO:
     #<THREADING>
